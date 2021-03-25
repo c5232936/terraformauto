@@ -1,0 +1,60 @@
+######################################################
+# Licensed Materials - Property of HCL Technologies
+#  HCL Commerce
+#  (C) Copyright HCL Technologies Limited 1996, 2020
+######################################################
+{{- if and (.Values.ingress.enabled) ( .Values.dx.enabled) (eq .Values.common.ingressController "nginx") (eq .Values.common.searchEngine "elastic") }}
+{{- $envTypeList := splitList "," (nospace .Values.common.environmentType) }}
+{{- range $envType := $envTypeList -}}
+{{- if and (ne $envType "share") (get $.Values.dx.namespace $envType) }}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}-dx-ingress
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-body-size: "800m"
+    nginx.org/client-max-body-size: "800m"
+    kubernetes.io/ingress.class: nginx
+    nginx.org/ssl-services: "{{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}-dx"
+  labels:
+    app: HCL-Commerce
+    chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "-" }}
+    release: {{ $.Release.Name }}
+    heritage: {{ $.Release.Service }}
+    group: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName}}{{ $envType }}
+spec:
+  tls:
+  - hosts:
+    - www.{{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}{{ $.Values.common.externalDomain }}
+    secretName: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}-certificate
+  rules:
+  - host: www.{{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}{{ $.Values.common.externalDomain }}
+    http:
+      paths:
+      - path: /dx
+        backend:
+          serviceName: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}-dx
+          servicePort: 443
+      - path: /wps
+        backend:
+          serviceName: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}-dx
+          servicePort: 443
+      - path: /hcl
+        backend:
+          serviceName: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}{{ $envType }}-dx
+          servicePort: 443
+      {{- if eq $envType "auth" }}
+      - path: /dx/api/dam
+        backend:
+          serviceName: {{ $.Values.common.tenant }}{{ $.Values.common.environmentName }}live-dx
+          servicePort: 443
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
